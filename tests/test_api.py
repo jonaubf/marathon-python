@@ -1,6 +1,9 @@
+import pytest
 import requests_mock
+
 from marathon import MarathonClient
 from marathon import models
+from marathon.exceptions import MarathonHttpError
 
 
 @requests_mock.mock()
@@ -218,3 +221,26 @@ def test_list_tasks_without_app_id(m):
             version="2014-10-03T22:16:23.634Z"
         )]
     assert actual_deployments == expected_deployments
+
+
+@requests_mock.mock()
+def test_503_response(m):
+    fake_response = """<head>
+<meta http-equiv="Content-Type" content="text/html;charset=ISO-8859-1"/>
+<title>Error 503 </title>
+</head>
+<body>
+<h2>HTTP ERROR: 503</h2>
+<p>Problem accessing /v2/tasks. Reason:
+<pre>    Could not determine the current leader</pre></p>
+<hr /><a href="http://eclipse.org/jetty">Powered by Jetty:// 9.3.z-SNAPSHOT</a><hr/>
+</body>
+</html>"""
+    m.get('http://fake_server/v2/tasks', text=fake_response, status_code=503)
+    mock_client = MarathonClient(servers='http://fake_server')
+    with pytest.raises(
+        MarathonHttpError,
+        message='MarathonHttpError: HTTP 503 returned with message, "%s"' %
+        fake_response
+    ):
+        mock_client.list_tasks()
